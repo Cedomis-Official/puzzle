@@ -4,6 +4,8 @@ import { useState } from "react"
 import { PuzzleGame } from "@/components/puzzle-game"
 import { GameHeader } from "@/components/game-header"
 import { Onboarding } from "@/components/onboarding"
+import { PWAInstallPrompt } from "@/components/pwa-install-prompt"
+import { OfflineIndicator } from "@/components/offline-indicator"
 
 export default function Home() {
   const [showOnboarding, setShowOnboarding] = useState(true)
@@ -13,7 +15,13 @@ export default function Home() {
   }
 
   if (showOnboarding) {
-    return <Onboarding onComplete={handleOnboardingComplete} />
+    return (
+      <>
+        <Onboarding onComplete={handleOnboardingComplete} />
+        <PWAInstallPrompt />
+        <OfflineIndicator />
+      </>
+    )
   }
 
   return (
@@ -22,6 +30,8 @@ export default function Home() {
         <GameHeader />
         <PuzzleGame />
       </div>
+      <PWAInstallPrompt />
+      <OfflineIndicator />
     </main>
   )
 }
