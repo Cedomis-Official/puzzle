@@ -47,21 +47,21 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             <div className="w-6 h-6 sm:w-8 sm:h-8 border border-gray-600 bg-white text-black text-xs flex items-center justify-center font-bold mb-1">
               3x3
             </div>
-            <div className="text-xs text-gray-400 whitespace-nowrap">Level 1-20</div>
+            <div className="text-xs text-gray-400 whitespace-nowrap">Level 1-29</div>
           </div>
           <div className="text-white text-lg sm:text-2xl">→</div>
           <div className="text-center flex-shrink-0">
             <div className="w-8 h-8 sm:w-12 sm:h-12 border border-gray-600 bg-white text-black text-xs flex items-center justify-center font-bold mb-1">
-              5x5
+              4x4
             </div>
-            <div className="text-xs text-gray-400 whitespace-nowrap">Level 21-60</div>
+            <div className="text-xs text-gray-400 whitespace-nowrap">Level 30-59</div>
           </div>
           <div className="text-white text-lg sm:text-2xl">→</div>
           <div className="text-center flex-shrink-0">
             <div className="w-10 h-10 sm:w-16 sm:h-16 border border-gray-600 bg-white text-black text-xs flex items-center justify-center font-bold mb-1">
-              8x8
+              5x5
             </div>
-            <div className="text-xs text-gray-400 whitespace-nowrap">Level 61-100</div>
+            <div className="text-xs text-gray-400 whitespace-nowrap">Level 60-100</div>
           </div>
         </div>
       ),
@@ -155,7 +155,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             </Button>
             <Button
               onClick={nextScreen}
-              className="w-full bg-white text-black hover:bg-gray-200 font-bold text-base sm:text-lg py-4 sm:py-6 transition-all duration-200 hover:scale-105"
+              className="w-full bg-red-600 text-white hover:bg-red-700 font-bold text-base sm:text-lg py-4 sm:py-6 transition-all duration-200 hover:scale-105 border-0"
             >
               {currentScreen === screens.length - 1 ? "START PLAYING" : "Continue"}
             </Button>

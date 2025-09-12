@@ -19,6 +19,7 @@ import {
   Loader2,
 } from "lucide-react"
 import { isValidEVMAddress } from "@/lib/utils"
+import { useGameCache, type GameCache } from "@/lib/game-cache"
 
 type PuzzleState = (number | null)[]
 
@@ -27,34 +28,31 @@ const WINNING_STATE = [1, 2, 3, 4, 5, 6, 7, 8, null]
 const generateLevelConfig = () => {
   const levels = []
   for (let i = 1; i <= 100; i++) {
-    // Exponential difficulty increase
-    const baseShuffles = Math.min(15 + i * 5 + Math.floor((i * i) / 10), 1000)
+    const baseShuffles = Math.min(10 + i * 3 + Math.floor((i * i) / 20), 500)
 
-    let baseTimeLimit = 120 // Start with 2 minutes instead of 5
+    let baseTimeLimit = 180 // Start with 3 minutes instead of 2
     if (i <= 10)
-      baseTimeLimit = Math.max(120 - i * 8, 60) // 2min to 1min
+      baseTimeLimit = Math.max(180 - i * 6, 120) // 3min to 2min
     else if (i <= 25)
-      baseTimeLimit = Math.max(60 - (i - 10) * 2, 30) // 1min to 30sec
+      baseTimeLimit = Math.max(120 - (i - 10) * 3, 90) // 2min to 1.5min
     else if (i <= 50)
-      baseTimeLimit = Math.max(30 - (i - 25) * 0.8, 20) // 30sec to 20sec
+      baseTimeLimit = Math.max(90 - (i - 25) * 2, 60) // 1.5min to 1min
     else if (i <= 75)
-      baseTimeLimit = Math.max(20 - (i - 50) * 0.4, 15) // 20sec to 15sec
-    else baseTimeLimit = Math.max(15 - (i - 75) * 0.2, 10) // 15sec to 10sec
+      baseTimeLimit = Math.max(60 - (i - 50) * 1, 45) // 1min to 45sec
+    else baseTimeLimit = Math.max(45 - (i - 75) * 1, 30) // 45sec to 30sec
 
-    // Drastically reduced move limits
-    let baseMaxMoves = 100
-    if (i <= 5) baseMaxMoves = Math.max(100 - i * 10, 50)
-    else if (i <= 15) baseMaxMoves = Math.max(50 - (i - 5) * 3, 25)
-    else if (i <= 30) baseMaxMoves = Math.max(25 - (i - 15) * 1, 15)
-    else if (i <= 50) baseMaxMoves = Math.max(15 - Math.floor((i - 30) / 2), 10)
-    else if (i <= 75) baseMaxMoves = Math.max(10 - Math.floor((i - 50) / 5), 8)
-    else baseMaxMoves = Math.max(8 - Math.floor((i - 75) / 10), 6)
+    let baseMaxMoves = 150
+    if (i <= 5) baseMaxMoves = Math.max(150 - i * 10, 100)
+    else if (i <= 15) baseMaxMoves = Math.max(100 - (i - 5) * 5, 60)
+    else if (i <= 30) baseMaxMoves = Math.max(60 - (i - 15) * 2, 40)
+    else if (i <= 50) baseMaxMoves = Math.max(40 - Math.floor((i - 30) / 2), 25)
+    else if (i <= 75) baseMaxMoves = Math.max(25 - Math.floor((i - 50) / 3), 18)
+    else baseMaxMoves = Math.max(18 - Math.floor((i - 75) / 5), 12)
 
-    // Grid size increases for extreme difficulty
     let gridSize = 3
-    if (i >= 20) gridSize = 4 // 4x4 grid from level 20
-    if (i >= 60) gridSize = 5 // 5x5 grid from level 60
-    if (i >= 90) gridSize = 6 // 6x6 grid from level 90
+    if (i >= 30) gridSize = 4 // 4x4 grid from level 30 instead of 20
+    if (i >= 70) gridSize = 5 // 5x5 grid from level 70 instead of 60
+    if (i >= 95) gridSize = 6 // 6x6 grid from level 95 instead of 90
 
     let name = "Tutorial"
     if (i <= 3) name = "Tutorial"
@@ -101,10 +99,39 @@ const ACHIEVEMENTS = {
 }
 
 export function PuzzleGame() {
-  const [currentLevel, setCurrentLevel] = useState(1)
-  const [unlockedLevels, setUnlockedLevels] = useState(1)
-  const [levelStars, setLevelStars] = useState<{ [key: number]: number }>({})
-  const [claimedAchievements, setClaimedAchievements] = useState<number[]>([])
+  const cacheManager = useGameCache()
+
+  const [gameData, setGameData] = useState<GameCache>(() => {
+    return cacheManager.loadCache({ validation: true })
+  })
+
+  const currentLevel = gameData.currentLevel
+  const unlockedLevels = gameData.unlockedLevels
+  const levelStars = gameData.levelStars
+  const claimedAchievements = gameData.claimedAchievements
+
+  const updateGameData = (updates: Partial<GameCache>) => {
+    const newData = { ...gameData, ...updates }
+    setGameData(newData)
+    cacheManager.saveCache(newData)
+  }
+
+  const setCurrentLevel = (level: number) => {
+    updateGameData({ currentLevel: level })
+  }
+
+  const setUnlockedLevels = (levels: number) => {
+    updateGameData({ unlockedLevels: levels })
+  }
+
+  const setLevelStars = (stars: { [key: number]: number }) => {
+    updateGameData({ levelStars: stars })
+  }
+
+  const setClaimedAchievements = (achievements: number[]) => {
+    updateGameData({ claimedAchievements: achievements })
+  }
+
   const [showWalletModal, setShowWalletModal] = useState(false)
   const [walletAddress, setWalletAddress] = useState("")
   const [pendingNFTLevel, setPendingNFTLevel] = useState<number | null>(null)
@@ -223,9 +250,8 @@ export function PuzzleGame() {
 
     let stars = 1 // Base star for completion
 
-    // Very strict requirements for additional stars
-    if (moves <= maxMoves * 0.4) stars++ // Must use 40% or fewer moves
-    if (timeUsed === null || timeUsed <= timeLimit * 0.3) stars++ // Must use 30% or less time
+    if (moves <= maxMoves * 0.6) stars++ // Must use 60% or fewer moves (was 40%)
+    if (timeUsed === null || timeUsed <= timeLimit * 0.5) stars++ // Must use 50% or less time (was 30%)
 
     return Math.min(stars, 3)
   }
@@ -275,6 +301,7 @@ export function PuzzleGame() {
         body: JSON.stringify({
           walletAddress,
           nftLevel: pendingNFTLevel,
+          sessionId: gameData.sessionId, // Include session ID for tracking
         }),
       })
 
@@ -284,8 +311,8 @@ export function PuzzleGame() {
         throw new Error(data.error || "Failed to submit address")
       }
 
-      // Success - update UI state
-      setClaimedAchievements([...claimedAchievements, pendingNFTLevel])
+      const newAchievements = [...claimedAchievements, pendingNFTLevel]
+      setClaimedAchievements(newAchievements)
 
       // Show success message with more details
       alert(
@@ -325,13 +352,23 @@ export function PuzzleGame() {
       const timeUsed = currentLevelConfig.timeLimit ? currentLevelConfig.timeLimit - (timeLeft || 0) : null
       const stars = calculateStars(moves, timeUsed)
 
-      setLevelStars((prev) => ({
-        ...prev,
-        [currentLevel]: Math.max(prev[currentLevel] || 0, stars),
-      }))
+      const newLevelStars = {
+        ...levelStars,
+        [currentLevel]: Math.max(levelStars[currentLevel] || 0, stars),
+      }
+      setLevelStars(newLevelStars)
+
+      cacheManager.updateGameStats({
+        totalGamesWon: gameData.gameStats.totalGamesWon + 1,
+        totalMoves: gameData.gameStats.totalMoves + moves,
+        bestTime:
+          timeUsed && (!gameData.gameStats.bestTime || timeUsed < gameData.gameStats.bestTime)
+            ? timeUsed
+            : gameData.gameStats.bestTime,
+      })
 
       if (currentLevel < 100) {
-        setUnlockedLevels((prev) => Math.max(prev, currentLevel + 1))
+        setUnlockedLevels(Math.max(unlockedLevels, currentLevel + 1))
       }
 
       setTimeout(() => setShowConfetti(false), 3000)
@@ -474,7 +511,7 @@ export function PuzzleGame() {
                 <Button
                   onClick={handleWalletSubmission}
                   disabled={!isWalletValid || isSubmitting}
-                  className={`flex-1 bg-gradient-to-r ${ACHIEVEMENTS[pendingNFTLevel as keyof typeof ACHIEVEMENTS]?.color} text-white disabled:opacity-50 disabled:cursor-not-allowed`}
+                  className={`flex-1 bg-gradient-to-r ${ACHIEVEMENTS[pendingNFTLevel as keyof typeof ACHIEVEMENTS].color} text-white text-xs sm:text-sm py-2 sm:py-3`}
                 >
                   {isSubmitting ? (
                     <>

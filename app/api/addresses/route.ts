@@ -21,7 +21,7 @@ function isValidEVMAddress(address: string): boolean {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { walletAddress, nftLevel } = body
+    const { walletAddress, nftLevel, sessionId } = body
 
     // Validation
     if (!walletAddress || !nftLevel) {
@@ -53,10 +53,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Address already submitted for this NFT level" }, { status: 409 })
     }
 
-    // Insert new address
     const result = await sql`
-      INSERT INTO addresses (wallet_address, nft_level, nft_name, user_agent, ip_address)
-      VALUES (${walletAddress}, ${nftLevel}, ${nftName}, ${userAgent}, ${ipAddress})
+      INSERT INTO addresses (wallet_address, nft_level, nft_name, user_agent, ip_address, session_id)
+      VALUES (${walletAddress}, ${nftLevel}, ${nftName}, ${userAgent}, ${ipAddress}, ${sessionId || null})
       RETURNING id, wallet_address, nft_level, nft_name, submitted_at
     `
 
