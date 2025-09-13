@@ -113,7 +113,10 @@ export function PuzzleGame() {
   const updateGameData = (updates: Partial<GameCache>) => {
     const newData = { ...gameData, ...updates }
     setGameData(newData)
-    cacheManager.saveCache(newData)
+    const saveSuccess = cacheManager.saveCache(newData)
+    if (!saveSuccess) {
+      console.warn("[v0] Failed to save game progress to localStorage")
+    }
   }
 
   const setCurrentLevel = (level: number) => {
@@ -169,6 +172,61 @@ export function PuzzleGame() {
     }
   }, [timeLeft, gameStarted, isWon, gameOver])
 
+  // Save progress every 30 seconds during active gameplay
+  useEffect(() => {
+    if (gameStarted && !isWon && !gameOver) {
+      const interval = setInterval(() => {
+        const currentData = {
+          ...gameData,
+          totalPlayTime: gameData.totalPlayTime + 30,
+          lastPlayed: new Date().toISOString(),
+        }
+        cacheManager.saveCache(currentData)
+      }, 30000)
+
+      return () => clearInterval(interval)
+    }
+  }, [gameStarted, isWon, gameOver, gameData, cacheManager])
+
+  const moveTile = (index: number) => {
+    if (isWon || gameOver) return
+
+    const emptyIndex = puzzle.indexOf(null)
+    const neighbors = getNeighbors(emptyIndex, currentLevelConfig.gridSize)
+
+    if (neighbors.includes(index)) {
+      const newPuzzle = [...puzzle]
+      newPuzzle[emptyIndex] = newPuzzle[index]
+      newPuzzle[index] = null
+
+      setPuzzle(newPuzzle)
+      const newMoves = moves + 1
+      setMoves(newMoves)
+
+      cacheManager.updateGameStats({
+        totalMoves: gameData.gameStats.totalMoves + 1,
+        totalGamesPlayed: gameData.gameStats.totalGamesPlayed + (newMoves === 1 ? 1 : 0),
+      })
+
+      if (currentLevelConfig.maxMoves && newMoves >= currentLevelConfig.maxMoves) {
+        setGameOver(true)
+      }
+    }
+  }
+
+  const getNeighbors = (index: number, gridSize: number): number[] => {
+    const neighbors = []
+    const row = Math.floor(index / gridSize)
+    const col = index % gridSize
+
+    if (row > 0) neighbors.push(index - gridSize) // Up
+    if (row < gridSize - 1) neighbors.push(index + gridSize) // Down
+    if (col > 0) neighbors.push(index - 1) // Left
+    if (col < gridSize - 1) neighbors.push(index + 1) // Right
+
+    return neighbors
+  }
+
   const shufflePuzzle = () => {
     const newPuzzle = [...puzzle]
     const gridSize = currentLevelConfig.gridSize
@@ -189,39 +247,6 @@ export function PuzzleGame() {
     setGameStarted(true)
     setGameOver(false)
     setTimeLeft(currentLevelConfig.timeLimit)
-  }
-
-  const getNeighbors = (index: number, gridSize: number): number[] => {
-    const neighbors = []
-    const row = Math.floor(index / gridSize)
-    const col = index % gridSize
-
-    if (row > 0) neighbors.push(index - gridSize) // Up
-    if (row < gridSize - 1) neighbors.push(index + gridSize) // Down
-    if (col > 0) neighbors.push(index - 1) // Left
-    if (col < gridSize - 1) neighbors.push(index + 1) // Right
-
-    return neighbors
-  }
-
-  const moveTile = (index: number) => {
-    if (isWon || gameOver) return
-
-    const emptyIndex = puzzle.indexOf(null)
-    const neighbors = getNeighbors(emptyIndex, currentLevelConfig.gridSize)
-
-    if (neighbors.includes(index)) {
-      const newPuzzle = [...puzzle]
-      newPuzzle[emptyIndex] = newPuzzle[index]
-      newPuzzle[index] = null
-
-      setPuzzle(newPuzzle)
-      setMoves(moves + 1)
-
-      if (currentLevelConfig.maxMoves && moves + 1 >= currentLevelConfig.maxMoves) {
-        setGameOver(true)
-      }
-    }
   }
 
   const resetGame = () => {
@@ -358,22 +383,60 @@ export function PuzzleGame() {
       }
       setLevelStars(newLevelStars)
 
-      cacheManager.updateGameStats({
+      const updatedStats = {
         totalGamesWon: gameData.gameStats.totalGamesWon + 1,
         totalMoves: gameData.gameStats.totalMoves + moves,
         bestTime:
           timeUsed && (!gameData.gameStats.bestTime || timeUsed < gameData.gameStats.bestTime)
             ? timeUsed
             : gameData.gameStats.bestTime,
-      })
+      }
+
+      cacheManager.updateGameStats(updatedStats)
 
       if (currentLevel < 100) {
-        setUnlockedLevels(Math.max(unlockedLevels, currentLevel + 1))
+        const newUnlockedLevels = Math.max(unlockedLevels, currentLevel + 1)
+        setUnlockedLevels(newUnlockedLevels)
+
+        updateGameData({
+          unlockedLevels: newUnlockedLevels,
+          levelStars: newLevelStars,
+        })
       }
 
       setTimeout(() => setShowConfetti(false), 3000)
     }
   }, [puzzle, gameStarted, moves, timeLeft, currentLevel, gameOver, winningState])
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Force save current game state before page unload
+      const finalData = {
+        ...gameData,
+        lastPlayed: new Date().toISOString(),
+      }
+      cacheManager.saveCache(finalData)
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [gameData, cacheManager])
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Save when app goes to background
+        const finalData = {
+          ...gameData,
+          lastPlayed: new Date().toISOString(),
+        }
+        cacheManager.saveCache(finalData)
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange)
+  }, [gameData, cacheManager])
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60)
