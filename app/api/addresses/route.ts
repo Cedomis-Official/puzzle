@@ -20,19 +20,26 @@ function isValidEVMAddress(address: string): boolean {
 // POST - Submit a new wallet address
 export async function POST(request: NextRequest) {
   try {
+    console.log("[v0] Starting address submission...")
+
     const body = await request.json()
     const { walletAddress, nftLevel, sessionId } = body
 
+    console.log("[v0] Received data:", { walletAddress, nftLevel, sessionId })
+
     // Validation
     if (!walletAddress || !nftLevel) {
+      console.log("[v0] Missing required fields")
       return NextResponse.json({ error: "Wallet address and NFT level are required" }, { status: 400 })
     }
 
     if (!isValidEVMAddress(walletAddress)) {
+      console.log("[v0] Invalid address format:", walletAddress)
       return NextResponse.json({ error: "Invalid EVM wallet address format" }, { status: 400 })
     }
 
     if (!ACHIEVEMENTS[nftLevel as keyof typeof ACHIEVEMENTS]) {
+      console.log("[v0] Invalid NFT level:", nftLevel)
       return NextResponse.json({ error: "Invalid NFT level" }, { status: 400 })
     }
 
@@ -43,21 +50,27 @@ export async function POST(request: NextRequest) {
 
     const nftName = ACHIEVEMENTS[nftLevel as keyof typeof ACHIEVEMENTS].name
 
-    // Check if address already exists for this level
+    console.log("[v0] Checking for existing address...")
+
     const existingAddress = await sql`
       SELECT id FROM addresses 
       WHERE wallet_address = ${walletAddress} AND nft_level = ${nftLevel}
     `
 
     if (existingAddress.length > 0) {
+      console.log("[v0] Address already exists for this level")
       return NextResponse.json({ error: "Address already submitted for this NFT level" }, { status: 409 })
     }
 
+    console.log("[v0] Inserting new address...")
+
     const result = await sql`
-      INSERT INTO addresses (wallet_address, nft_level, nft_name, user_agent, ip_address, session_id)
-      VALUES (${walletAddress}, ${nftLevel}, ${nftName}, ${userAgent}, ${ipAddress}, ${sessionId || null})
+      INSERT INTO addresses (wallet_address, nft_level, nft_name, user_agent, ip_address, session_id, submitted_at, created_at)
+      VALUES (${walletAddress}, ${nftLevel}, ${nftName}, ${userAgent}, ${ipAddress}, ${sessionId || null}, NOW(), NOW())
       RETURNING id, wallet_address, nft_level, nft_name, submitted_at
     `
+
+    console.log("[v0] Address submitted successfully:", result[0])
 
     return NextResponse.json({
       success: true,
@@ -65,8 +78,24 @@ export async function POST(request: NextRequest) {
       data: result[0],
     })
   } catch (error) {
-    console.error("Error submitting address:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("[v0] Error submitting address:", error)
+    console.error("[v0] Error details:", {
+      message: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+      name: error instanceof Error ? error.name : undefined,
+    })
+    return NextResponse.json(
+      {
+        error: "Internal server error",
+        details:
+          process.env.NODE_ENV === "development"
+            ? error instanceof Error
+              ? error.message
+              : "Unknown error"
+            : undefined,
+      },
+      { status: 500 },
+    )
   }
 }
 
@@ -79,45 +108,37 @@ export async function GET(request: NextRequest) {
     const limit = Number.parseInt(searchParams.get("limit") || "100")
     const offset = Number.parseInt(searchParams.get("offset") || "0")
 
-    let query = `
+    let baseQuery = `
       SELECT id, wallet_address, nft_level, nft_name, submitted_at, created_at
       FROM addresses
     `
+
     const conditions = []
-    const params: any[] = []
+    const params = []
 
     if (level) {
-      conditions.push(`nft_level = $${params.length + 1}`)
-      params.push(Number.parseInt(level))
+      conditions.push(`nft_level = ${Number.parseInt(level)}`)
     }
 
     if (address) {
-      conditions.push(`wallet_address = $${params.length + 1}`)
-      params.push(address)
+      conditions.push(`wallet_address = '${address}'`)
     }
 
     if (conditions.length > 0) {
-      query += ` WHERE ${conditions.join(" AND ")}`
+      baseQuery += ` WHERE ${conditions.join(" AND ")}`
     }
 
-    query += ` ORDER BY submitted_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`
-    params.push(limit, offset)
+    baseQuery += ` ORDER BY submitted_at DESC LIMIT ${limit} OFFSET ${offset}`
 
-    const addresses = await sql(query, params)
+    const addresses = await sql(baseQuery)
 
     // Get total count for pagination
     let countQuery = "SELECT COUNT(*) as total FROM addresses"
-    const countParams: any[] = []
-
     if (conditions.length > 0) {
       countQuery += ` WHERE ${conditions.join(" AND ")}`
-      // Use the same condition parameters (excluding limit/offset)
-      for (let i = 0; i < params.length - 2; i++) {
-        countParams.push(params[i])
-      }
     }
 
-    const countResult = await sql(countQuery, countParams)
+    const countResult = await sql(countQuery)
     const total = Number.parseInt(countResult[0].total)
 
     return NextResponse.json({
@@ -131,7 +152,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error("Error fetching addresses:", error)
+    console.error("[v0] Error fetching addresses:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

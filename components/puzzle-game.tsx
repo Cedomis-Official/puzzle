@@ -610,48 +610,35 @@ export function PuzzleGame() {
               </Button>
             </div>
             <div className="space-y-2 sm:space-y-3">
-              {Object.entries(ACHIEVEMENTS).map(([level, achievement]) => {
-                const levelNum = Number(level)
-                const isUnlocked = currentLevel >= levelNum
-                const isClaimed = claimedAchievements.includes(levelNum)
-
-                return (
-                  <div key={level} className="flex items-center justify-between p-2 sm:p-3 bg-background/50 rounded-lg">
-                    <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-                      <span className="text-lg sm:text-2xl flex-shrink-0">{achievement.icon}</span>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-xs sm:text-sm truncate">{achievement.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          <span className="hidden sm:inline">Level {level} - Submit wallet address to claim</span>
-                          <span className="sm:hidden">Lvl {level} - Submit wallet</span>
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div
-                        className={`px-2 py-1 rounded text-xs font-medium flex-shrink-0 ${
-                          isClaimed
-                            ? "bg-green-500/20 text-green-400"
-                            : isUnlocked
-                              ? "bg-yellow-500/20 text-yellow-400"
-                              : "bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        {isClaimed ? "Claimed" : isUnlocked ? "Available" : "Locked"}
-                      </div>
-                      {isUnlocked && !isClaimed && (
-                        <Button
-                          size="sm"
-                          onClick={() => handleAchievementClaim(levelNum)}
-                          className={`text-xs px-2 py-1 h-auto bg-gradient-to-r ${achievement.color} text-white`}
-                        >
-                          Claim
-                        </Button>
-                      )}
+              {Object.entries(ACHIEVEMENTS).map(([level, achievement]) => (
+                <div key={level} className="flex items-center justify-between p-2 sm:p-3 bg-background/50 rounded-lg">
+                  <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                    <span className="text-lg sm:text-2xl flex-shrink-0">{achievement.icon}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-xs sm:text-sm truncate">{achievement.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        <span className="hidden sm:inline">Level {level} - Submit wallet address to claim</span>
+                        <span className="sm:hidden">Lvl {level} - Submit wallet</span>
+                      </p>
                     </div>
                   </div>
-                )
-              })}
+                  <div
+                    className={`px-2 py-1 rounded text-xs font-medium flex-shrink-0 ${
+                      claimedAchievements.includes(Number(level))
+                        ? "bg-green-500/20 text-green-400"
+                        : currentLevel >= Number(level)
+                          ? "bg-yellow-500/20 text-yellow-400"
+                          : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {claimedAchievements.includes(Number(level))
+                      ? "Claimed"
+                      : currentLevel >= Number(level)
+                        ? "Available"
+                        : "Locked"}
+                  </div>
+                </div>
+              ))}
             </div>
             <div className="mt-4 pt-4 border-t border-border/50 sm:hidden">
               <Button variant="outline" onClick={() => setShowHints(false)} className="w-full bg-transparent">
@@ -925,36 +912,11 @@ export function PuzzleGame() {
                 </Button>
               ) : (
                 <div className="text-center p-3 bg-background/50 rounded">
-                  {(() => {
-                    const availableAchievements = Object.keys(ACHIEVEMENTS)
-                      .map(Number)
-                      .filter((level) => currentLevel >= level && !claimedAchievements.includes(level))
-
-                    if (availableAchievements.length > 0) {
-                      return (
-                        <div>
-                          <p className="text-xs text-yellow-400 mb-2 font-medium">
-                            🎁 You have {availableAchievements.length} unclaimed NFT
-                            {availableAchievements.length > 1 ? "s" : ""}!
-                          </p>
-                          <Button
-                            size="sm"
-                            onClick={() => setShowHints(true)}
-                            className="text-xs bg-gradient-to-r from-yellow-500 to-orange-500 text-white"
-                          >
-                            View & Claim NFTs
-                          </Button>
-                        </div>
-                      )
-                    } else {
-                      const nextAchievement = Object.keys(ACHIEVEMENTS).find((level) => Number(level) > currentLevel)
-                      return (
-                        <p className="text-xs text-muted-foreground mb-1">
-                          {nextAchievement ? `Next NFT reward at level ${nextAchievement}` : "All NFT rewards claimed!"}
-                        </p>
-                      )
-                    }
-                  })()}
+                  <p className="text-xs text-muted-foreground mb-1">
+                    {Object.keys(ACHIEVEMENTS).find((level) => Number(level) > currentLevel)
+                      ? `Next NFT reward at level ${Object.keys(ACHIEVEMENTS).find((level) => Number(level) > currentLevel)}`
+                      : "All NFT rewards claimed!"}
+                  </p>
                   <div className="text-xs text-muted-foreground">Progress: {currentLevel}/100</div>
                 </div>
               )}
