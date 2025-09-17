@@ -445,7 +445,7 @@ export function PuzzleGame() {
   }
 
   const goToLevel = (level: number) => {
-    if (level <= unlockedLevels && level >= 1 && level <= 100) {
+    if (level >= 1 && level <= 100 && level <= unlockedLevels) {
       setCurrentLevel(level)
       resetGame()
     }
@@ -685,7 +685,7 @@ export function PuzzleGame() {
             variant="outline"
             size="sm"
             onClick={() => goToLevel(currentLevel + 1)}
-            disabled={currentLevel >= unlockedLevels || currentLevel >= 100}
+            disabled={!(currentLevel < unlockedLevels && currentLevel < 100)}
             className="bg-transparent p-2 sm:px-3"
           >
             <ChevronRight className="w-4 h-4" />

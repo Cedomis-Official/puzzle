@@ -105,41 +105,69 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const level = searchParams.get("level")
     const address = searchParams.get("address")
-    const limit = Number.parseInt(searchParams.get("limit") || "100")
-    const offset = Number.parseInt(searchParams.get("offset") || "0")
+    const limit = Math.min(Number.parseInt(searchParams.get("limit") || "100"), 1000) // Cap at 1000
+    const offset = Math.max(Number.parseInt(searchParams.get("offset") || "0"), 0)
 
-    let baseQuery = `
-      SELECT id, wallet_address, nft_level, nft_name, submitted_at, created_at
-      FROM addresses
-    `
+    console.log("[v0] GET request params:", { level, address, limit, offset })
 
-    const conditions = []
-    const params = []
+    let addresses
+    let countResult
 
-    if (level) {
-      conditions.push(`nft_level = ${Number.parseInt(level)}`)
+    if (level && address) {
+      // Both level and address filters
+      addresses = await sql`
+        SELECT id, wallet_address, nft_level, nft_name, submitted_at, created_at
+        FROM addresses
+        WHERE nft_level = ${Number.parseInt(level)} AND wallet_address = ${address}
+        ORDER BY submitted_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `
+      countResult = await sql`
+        SELECT COUNT(*) as total FROM addresses
+        WHERE nft_level = ${Number.parseInt(level)} AND wallet_address = ${address}
+      `
+    } else if (level) {
+      // Only level filter
+      addresses = await sql`
+        SELECT id, wallet_address, nft_level, nft_name, submitted_at, created_at
+        FROM addresses
+        WHERE nft_level = ${Number.parseInt(level)}
+        ORDER BY submitted_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `
+      countResult = await sql`
+        SELECT COUNT(*) as total FROM addresses
+        WHERE nft_level = ${Number.parseInt(level)}
+      `
+    } else if (address) {
+      // Only address filter
+      addresses = await sql`
+        SELECT id, wallet_address, nft_level, nft_name, submitted_at, created_at
+        FROM addresses
+        WHERE wallet_address = ${address}
+        ORDER BY submitted_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `
+      countResult = await sql`
+        SELECT COUNT(*) as total FROM addresses
+        WHERE wallet_address = ${address}
+      `
+    } else {
+      // No filters
+      addresses = await sql`
+        SELECT id, wallet_address, nft_level, nft_name, submitted_at, created_at
+        FROM addresses
+        ORDER BY submitted_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `
+      countResult = await sql`
+        SELECT COUNT(*) as total FROM addresses
+      `
     }
 
-    if (address) {
-      conditions.push(`wallet_address = '${address}'`)
-    }
-
-    if (conditions.length > 0) {
-      baseQuery += ` WHERE ${conditions.join(" AND ")}`
-    }
-
-    baseQuery += ` ORDER BY submitted_at DESC LIMIT ${limit} OFFSET ${offset}`
-
-    const addresses = await sql(baseQuery)
-
-    // Get total count for pagination
-    let countQuery = "SELECT COUNT(*) as total FROM addresses"
-    if (conditions.length > 0) {
-      countQuery += ` WHERE ${conditions.join(" AND ")}`
-    }
-
-    const countResult = await sql(countQuery)
     const total = Number.parseInt(countResult[0].total)
+
+    console.log("[v0] Retrieved addresses:", { count: addresses.length, total })
 
     return NextResponse.json({
       success: true,
@@ -153,6 +181,21 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error("[v0] Error fetching addresses:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("[v0] Error details:", {
+      message: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+    return NextResponse.json(
+      {
+        error: "Internal server error",
+        details:
+          process.env.NODE_ENV === "development"
+            ? error instanceof Error
+              ? error.message
+              : "Unknown error"
+            : undefined,
+      },
+      { status: 500 },
+    )
   }
 }
